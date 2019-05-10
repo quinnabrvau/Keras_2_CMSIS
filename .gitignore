@@ -1,0 +1,4 @@
+*.sublime*
+.spyporject
+__pycache__
+*.h5
