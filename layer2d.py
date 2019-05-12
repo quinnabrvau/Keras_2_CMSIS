@@ -10,10 +10,10 @@ from copy import deepcopy
 
 from layer import Layer
 
-class Layer1d(Layer):
+class Layer2d(Layer):
     pass
 
-class Conv1d(Layer1d):
+class Conv2d(Layer2d):
     c_function = 'arm_convolve_HWC_q7_basic_1d'
 
     def opt(self,mode='basic'):
@@ -82,7 +82,7 @@ class Conv1d(Layer1d):
     def get_bufA_size(self):
         return 2*self.input_shape[-1]*self.input_shape[-1]*self.input_shape[-1]
 
-class Max_pool1d(Layer1d):
+class Max_pool2d(Layer2d):
     c_function = 'arm_maxpool_q7_HWC_1d'
     
     def p_func_call(self, sig='_needs_source_', dst='_needs_dest_', **args):
@@ -98,10 +98,10 @@ class Max_pool1d(Layer1d):
         if self.output_shape[0] is not None:
             self.output_shape[0] = self.output_shape[0] // self.config['pool_size'][0]
 
-class Ave_pool1d(Max_pool1d):
+class Ave_pool2d(Max_pool1d):
     c_function = 'arm_avepool_q7_HWC_1d'
 
-class Up_sample1d(Layer1d):
+class Up_sample2d(Layer2d):
     c_function = 'arm_upsample_q7_HWC_1d'
     
     def p_func_call(self, sig='_needs_source_', dst='_needs_dest_', **args):

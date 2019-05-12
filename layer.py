@@ -25,7 +25,7 @@ def keras_name_fix(name):
     n = n.replace('kern','KERN')
     return n.replace('bias','BIAS')
 
-class layer:
+class Layer:
     name = '_missing_'
     c_function = '_missing_'
     py_function = '__TODO__'
@@ -92,21 +92,11 @@ class layer:
     def set_output_shape(self):
         self.output_shape = deepcopy(self.input_shape)
         
-    def get_out_size(self,length=-1):
-        if isinstance(length,str):
-            return self.output_shape[1]
-        length = self.size_check(length)
-        return length*self.output_shape[1]
-    
-    def size_check(self,length,strOK=False):
-        if strOK and isinstance(length,str):
-            return length
-        elif self.input_shape[0] == None:
-            if length == -1:
-                raise Exception('Input:p_func_call: No input length given for arbitrary length cnn1d')
-        else:
-            return self.input_shape[0]
-        return length
+    def get_out_size(self):
+        out = 1
+        for a in self.output_shape:
+            out *= a
+        return out;
 
     def _p_array(self,array):
         # print(len(array.shape), array.shape, array)
@@ -151,17 +141,17 @@ class layer:
     def opt(self,mode='basic'):
         pass
 
-    def get_bufA_size(self, length=-1):
+    def get_bufA_size(self):
         return 0
 
-    def get_bufB_size(self, length=-1):
+    def get_bufB_size(self):
         return 0
 
-class Input(layer):
+class Input(Layer):
     inPlace = True
     def __init__(self, config=None, weights=None, prefix=''):
         # print(config,weights,prefix)
-        layer.__init__(self, config, weights, prefix)
+        Layer.__init__(self, config, weights, prefix)
         self.input_shape = config['batch_input_shape'][1:]
         self.output_shape = self.input_shape
     def p_func_call(self, **args):
@@ -173,7 +163,7 @@ class Activation(Input):
     inPlace = True
 
     def __init__(self, config=None, weights=None, prefix='', activation=None):
-        layer.__init__(self, config, weights, prefix)
+        Layer.__init__(self, config, weights, prefix)
         if (activation is not None):
             self.activation = activation_map(activation)
         else:
@@ -183,39 +173,25 @@ class Activation(Input):
         if (self.activation == 'relu'):
             c_function = 'arm_relu_q7'
 
-    def size_check(self,length,strOK=False):
-        if strOK and isinstance(length,str):
-            return length
-        else:
-            _length = 1
-            for a in self.input_shape:
-                if a is not None:
-                    _length *= a
-            return _length
-        return length
-
-    def p_func_call(self, sig='_needs_source_' , length=-1, **args):
+    def p_func_call(self, sig='_needs_source_' , **args):
         _params = []
         if (self.activation == 'relu'):
             self.c_function = 'arm_relu_q7'
-            _params = [sig, str(self.size_check(length, True))]
+            _params = [sig, str(self.get_out_size())]
 
         elif (self.activation == 'tanh'):
             self.c_function = 'arm_nn_activations_direct_q7'
-            _params = [sig, str(self.size_check(length, True)), str(self.int_width), 'ARM_TANH']
+            _params = [sig, str(self.get_out_size()), str(self.int_width), 'ARM_TANH']
 
         elif (self.activation == 'sigmoid'):
             self.c_function = 'arm_nn_activations_direct_q7'
-            _params = [sig, str(self.size_check(length, True)), str(self.int_width), 'ARM_SIGMOID']
+            _params = [sig, str(self.get_out_size()), str(self.int_width), 'ARM_SIGMOID']
 
         else:
             raise Exception('Activation function ('+self.activation+') is not implemented in this library')
 
         return self.c_function + '(' + ', '.join([str(a) for a in _params]) + ');'
     
-    
-    def get_out_size(self,length=-1):
-        return self.size_check(length)
     
     
     

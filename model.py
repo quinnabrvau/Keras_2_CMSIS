@@ -50,6 +50,8 @@ class model(list):
             self.fixed = (layer.input_shape[0]!=None)
         else:
             self.add(layer)
+        if not self.fixed:
+            raise Exception("This branch doesn't handle non fixed shape inputs")
 
     def add(self,layer):
         self.append(layer)
@@ -92,25 +94,18 @@ class model(list):
         index, last_index = 1, 1
         buf = 'signal'
         
-        params = ['float32_t *signal', 'float32_t *out_buffer']
+        params = ['q7_t *signal', 'q7_t *out_buffer']
         bufA, bufB = 0, 0
-       
-        length = -1
-        if not self.fixed:
-            length = 'len'
-        else:
-            length = self[0].input_shape[0]
         
         call_code = ''
    
         for lay in self[1:]:
             foo = ''
-            foo = lay.p_func_call(length=length, sig=buf, dst=buffers[index], bufA='bufA', bufB='bufB')
-            bufA = max(bufA, lay.get_bufA_size(length))
-            bufB = max(bufB, lay.get_bufB_size(length))
-            out_size = lay.get_out_size(length)
+            foo = lay.p_func_call(sig=buf, dst=buffers[index], bufA='bufA', bufB='bufB')
+            bufA = max(bufA, lay.get_bufA_size())
+            bufB = max(bufB, lay.get_bufB_size())
+            out_size = lay.get_out_size()
             buf_size[index] = max(out_size, buf_size[index])
-            print(index,'->',buf_size[index])
             for line in foo.splitlines():
                 call_code += '\t' + line + '\n'
             last_index = index
@@ -123,9 +118,9 @@ class model(list):
         call_code = call_code.replace(buffers[1-last_index],'out_buffer')
         call_code = call_code.replace(buffers[last_index],'int_buffer')
         if self.fixed:
-            call_code = '\nq7_t  int_buffer[' + str(buf_size[last_index]) + '];\n' + call_code
-            call_code = '\nq15_t bufferA[' + str(bufA) + '];\n' + call_code
-            call_code = '\nq7_t  bufferB[' + str(bufB) + '];\n' + call_code
+            call_code = '\tq7_t  int_buffer[' + str(buf_size[last_index]) + '];\n' + call_code
+            call_code = '\tq15_t bufferA[' + str(bufA) + '];\n' + call_code
+            call_code = '\tq7_t  bufferB[' + str(bufB) + '];\n' + call_code
         else:
             params.append('q7_t  *int_buffer')
             params.append('q15_t *bufferA')
@@ -142,7 +137,7 @@ class model(list):
             self.header['size'] = foo
 
         if self.static:
-            out = 'STATIC_UNLESS_TESTING\n'
+            out = 'static\n'
         self.header['fn'] = out + 'void ' + self.name + '_fn( ' + ', '.join(params) + ' )'
         out += '\n\n' + self.header['fn'] +' {\n'
         out += call_code
@@ -162,7 +157,9 @@ class model(list):
             
         out += '\n'
         for lay in self:
-            out += lay.p_macro() + '\n\n'
+            foo = lay.p_macro()
+            if foo != '':
+                out += foo + '\n\n'
 
         out += '\n'
         for key in self.header.keys():
