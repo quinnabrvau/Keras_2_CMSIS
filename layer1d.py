@@ -16,21 +16,32 @@ class Conv1d(layer):
 
     def opt(self,mode='basic'):
         self.c_function = 'arm_convolve_HWC_q7_basic_1d'
-        if mode=='fast':
+        if 'fast' in mode:
             if (self.input_shape[-1] %4 == 0 or self.output_shape[-1]%2 == 0):
                 self.c_function = 'arm_convolve_HWC_q7_fast_1d'
             else:
                 print("attempted to optimize",self.name,"but encountered unsupported shape, reverting to basic")
-
+        elif 'q15' in mode:
+            self.c_function = 'arm_convolve_HWC_q15_basic_1d'
 
     def p_def(self):
         return '\n\n'.join([self.p_kern(), self.p_bias()])
         
 
-    def p_func_call(self, sig='_needs_source_', dst='_needs_dest_', buf='_needs_buf_',length=-1, **args):
+    def p_func_call(self, sig='_needs_source_', dst='_needs_dest_', bufA='_needs_buf_A', bufB='_needs_buf_B', length=-1, **args):
         length = self.size_check(length,True)
-        foo = [self.name, sig, dst, buf, str(length)]
-        return  self.c_function + '('+', '.join(foo)+');\n'
+        foo = [sig, self.input_shape[-2], self.input_shape[-1], 
+                self.name+'_KERN', 
+                self.config['filters'], 
+                self.config['filters'], 
+                # self.padding,
+                # self.stride,
+                self.name+'_BIAS',
+                # self.bias_shift,
+                # self.out_shift,
+                dst, bufA, bufB]
+
+        return  self.c_function + '('+', '.join([ str(a) for a in foo])+');\n'
     
     def get_buf_size(self,length=-1):
         if isinstance(length,str):
@@ -77,7 +88,7 @@ class Max_pool1d(layer):
     def set_output_shape(self):
         self.output_shape = deepcopy(self.input_shape)
         if self.output_shape[0] is not None:
-            self.output_shape[0] /= self.config['pool_size'][0]
+            self.output_shape[0] = self.output_shape[0] // self.config['pool_size'][0]
 
 class Ave_pool1d(Max_pool1d):
     c_function = 'arm_avepool_q7_HWC_1d'

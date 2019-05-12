@@ -6,6 +6,7 @@ Created on Mon Oct  8 16:54:29 2018
 @author: quinn
 """
 from copy import deepcopy
+import numpy as np
 
 def activation_map(_act):
     act = _act.lower()
@@ -36,6 +37,8 @@ class layer:
     weights = None
     data = {}
     activation = 'none'
+    kern = np.asarray([])
+    bias = np.asarray([])
     def __init__(self, config=None, weights=None, prefix=''):
         if 'name' in config.keys():
             self.name = prefix+config['name']
@@ -43,7 +46,17 @@ class layer:
             self.activation=activation_map(config['activation'])
         self.config = config
         self.weights = weights
-    
+
+        if weights is not None:
+            Keys = list(self.weights.keys())
+            if len(Keys) > 0:
+                index = Keys[0]
+                for k in self.weights[index].keys():
+                    if 'kern' in k:
+                        self.kern = self.weights[index][k].T
+                    elif 'bias' in k:
+                        self.bias = self.weights[index][k]
+        
     def find_h5(self, h5_path='', keys=None, h5_file=None):
         if h5_file is None:
             raise Exception("find_h5: No H5 file provided")
@@ -89,10 +102,7 @@ class layer:
             if length == -1:
                 raise Exception('Input:p_func_call: No input length given for arbitrary length cnn1d')
         else:
-            if length == -1:
-                return self.input_shape[0]
-            elif length != self.input_shape[0]:
-                raise Warning('setting the input length for a cnn1d that expected a fixed length '+str(length))
+            return self.input_shape[0]
         return length
 
     def _p_array(self,array):
@@ -110,17 +120,11 @@ class layer:
         return out 
 
     def p_kern(self):
-        index = list(self.weights.keys())[0]
-        for k in self.weights[index].keys():
-            if 'kern' in k:
-                return self._p_to_array('_KERN', self.weights[index][k].T)
-        return ''
+        return self._p_to_array('_KERN', self.kern)
+        
+
     def p_bias(self):
-        index = list(self.weights.keys())[0]
-        for k in self.weights[index].keys():
-            if 'bias' in k:
-                return self._p_to_array('_BIAS', self.weights[index][k])
-        return ''
+        return self._p_to_array('_BIAS', self.bias)
 
     def _p_macro(self,name,array):
         out = ''
@@ -152,4 +156,47 @@ class Input(layer):
         self.output_shape = self.input_shape
     def p_func_call(self, **args):
         return ''
+    
+class Activation(layer):
+    c_function = 'arm_nn_activations_direct_q7'
+    int_width = 0; ##TODO: calculate
+
+    def __init__(self, config=None, weights=None, prefix='', activation=None):
+        layer.__init__(self, config, weights, prefix)
+        if (activation is not None):
+            self.activation = activation
+        else:
+            if (self.activation == 'none'):
+                raise Warning('No Activation function detected')
+
+        if (self.activation == 'relu'):
+            c_function = 'arm_relu_q7'
+
+
+    def p_func_fall(self, sig='_needs_source_' ,length=-1):
+        params = []
+        if (self.activation == 'relu'):
+            self.c_function = 'arm_relu_q7'
+            params = [sig, str(self.size_check(length, True))]
+
+        elif (self.activation == 'tanh'):
+            self.c_function = 'arm_nn_activations_direct_q7'
+            params = [sig, str(self.size_check(length, True)), str(self.int_width), 'ARM_TANH']
+
+        elif (self.activation == 'sigmoid'):
+            self.c_function = 'arm_nn_activations_direct_q7'
+            params = [sig, str(self.size_check(length, True)), str(self.int_width), 'ARM_SIGMOID']
+
+        else:
+            raise Exception('Activation function ('+self.activation+') is not implemented in this library')
+
+        return self.c_function + '(' + ','.join(params) + ');'
+    
+    
+    
+    
+    
+    
+    
+    
     

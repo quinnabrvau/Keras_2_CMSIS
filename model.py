@@ -113,11 +113,11 @@ class model(list):
                 call_code += '\t' + line + '\n'
             if not isinstance(lay,Input):   
                 buf = buffers[index]
-           
+
         call_code = call_code.replace(buffers[index],'out_buffer')
         call_code = call_code.replace(buffers[1-index],'int_buffer')
         if self.fixed:
-            call_code = 'float32_t int_buffer[' + buf_size[1-index] + '];\n' + call_code
+            call_code = 'float32_t int_buffer[' + str(buf_size[1-index]) + '];\n' + call_code
         else:
             params.append('float32_t *int_buffer')
             params.append('float32_t *conv_buf')
@@ -142,8 +142,8 @@ class model(list):
         out += '#define ' + self.name + '_h_\n'
         out += '\n'
         deps = []
-        for lay in self:
-            deps += lay.dep()
+        # for lay in self:
+            # deps += lay.dep()
         deps = list(set( deps ))
         for dep in deps:
             out += '#include "'+dep+'"\n'

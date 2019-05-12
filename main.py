@@ -95,7 +95,9 @@ def convert_model(filename, name='NONE', path='./', verbose=True):
         print(m.p_header())
 
     file = open( path + name + '.c','w')
-    file.write("/*This file was auto generated using the NN to C library*/\n")
+    file.write("""/**This file was auto generated using the NN 2 CMSIS library
+ * More information can be found at github.com/quinnabrvau/Keras_2_CMSIS
+ **/\n""")
     file.write('#include "' + name + '.h"\n')
     file.write(m.p_def())
     file.write(m.p_func_call())
