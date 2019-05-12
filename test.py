@@ -28,12 +28,12 @@ if __name__=='__main__':
     import tempfile
     shape = (100,4)
     batch_shape = (100,)+shape
-    # m = gen_test_model_1d(shape)
+    m = gen_test_model_1d(shape)
 #    a, b = normal(0, 1, batch_shape), normal(0, 1, batch_shape)
 
     # path = tempfile.gettempdir()
     path = './tmp/'
-    # m.save(path+'/__test_1d.h5')
+    m.save(path+'/__test_1d.h5')
     convert_model(path+'/__test_1d.h5', 
                   name='__test_1d_model',
                   path=path, 

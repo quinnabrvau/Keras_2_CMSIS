@@ -8,7 +8,7 @@ Created on Mon Oct  8 17:00:13 2018
 
 from copy import deepcopy
 
-from layer import Input
+from layer import Input, Activation
 from layer1d import Conv1d, Up_sample1d,  Max_pool1d, Ave_pool1d
 
 def choose_layer(name):
@@ -57,6 +57,12 @@ class model(list):
         self[-1].Prev = self[-2]
         self[-1].input_shape = deepcopy(self[-2].output_shape)
         self[-1].set_output_shape()
+        if layer.activation != 'none':
+            self.append(Activation(prefix=self.name+layer.name+' activation', activation = layer.activation))
+            layer.activation == 'none'
+            self[-1].input_shape = deepcopy(self[-2].output_shape)
+            self[-1].output_shape = self[-1].input_shape
+
         
     def __str__(self):
         out = self.name + '\n'
@@ -117,7 +123,7 @@ class model(list):
         call_code = call_code.replace(buffers[index],'out_buffer')
         call_code = call_code.replace(buffers[1-index],'int_buffer')
         if self.fixed:
-            call_code = 'float32_t int_buffer[' + str(buf_size[1-index]) + '];\n' + call_code
+            call_code = '\nfloat32_t int_buffer[' + str(buf_size[1-index]) + '];\n' + call_code
         else:
             params.append('float32_t *int_buffer')
             params.append('float32_t *conv_buf')
@@ -132,7 +138,7 @@ class model(list):
         if self.static:
             out = 'STATIC_UNLESS_TESTING\n'
         self.header['fn'] = out + 'void ' + self.name + '_fn( ' + ', '.join(params) + ' )'
-        out = self.header['fn'] +' {\n'
+        out += '\n\n' + self.header['fn'] +' {\n'
         out += call_code
         out += '}\n'
         return out
@@ -141,7 +147,7 @@ class model(list):
         out  = '#ifndef ' + self.name + '_h_\n'
         out += '#define ' + self.name + '_h_\n'
         out += '\n'
-        deps = []
+        deps = ['arm_math.h','arm_nnfunctions.h']
         # for lay in self:
             # deps += lay.dep()
         deps = list(set( deps ))
@@ -150,7 +156,7 @@ class model(list):
             
         out += '\n'
         for lay in self:
-            out += lay.p_macro()
+            out += lay.p_macro() + '\n\n'
 
         out += '\n'
         for key in self.header.keys():

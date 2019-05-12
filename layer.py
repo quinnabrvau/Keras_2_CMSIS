@@ -40,9 +40,11 @@ class layer:
     kern = np.asarray([])
     bias = np.asarray([])
     def __init__(self, config=None, weights=None, prefix=''):
-        if 'name' in config.keys():
+        if config is not None and 'name' in config.keys():
             self.name = prefix+config['name']
-        if 'activation' in config.keys():
+        else:
+            self.name = prefix
+        if config is not None and 'activation' in config.keys():
             self.activation=activation_map(config['activation'])
         self.config = config
         self.weights = weights
@@ -140,13 +142,19 @@ class layer:
         index = Index[0]
         for k in self.weights[index].keys():
             if 'bias' in k:
-                out += self._p_macro('BIAS', self.weights[index][k])
+                out += self._p_macro('BIAS', self.weights[index][k]) + '\n'
             if 'kern' in k:
-                out += self._p_macro('KERN', self.weights[index][k])
+                out += self._p_macro('KERN', self.weights[index][k]) + '\n'
         return out
 
     def opt(self,mode='basic'):
         pass
+
+    def get_bufA_size(self, length=-1):
+        return 0
+
+    def get_bufB_size(self, length=-1):
+        return 0
 
 class Input(layer):
     def __init__(self, config=None, weights=None, prefix=''):
@@ -164,7 +172,7 @@ class Activation(layer):
     def __init__(self, config=None, weights=None, prefix='', activation=None):
         layer.__init__(self, config, weights, prefix)
         if (activation is not None):
-            self.activation = activation
+            self.activation = activation_map(activation)
         else:
             if (self.activation == 'none'):
                 raise Warning('No Activation function detected')
@@ -173,24 +181,25 @@ class Activation(layer):
             c_function = 'arm_relu_q7'
 
 
-    def p_func_fall(self, sig='_needs_source_' ,length=-1):
-        params = []
+    def p_func_call(self, sig='_needs_source_' , length=-1, **args):
+        _params = []
         if (self.activation == 'relu'):
             self.c_function = 'arm_relu_q7'
-            params = [sig, str(self.size_check(length, True))]
+            _params = [sig, str(self.size_check(length, True))]
 
         elif (self.activation == 'tanh'):
             self.c_function = 'arm_nn_activations_direct_q7'
-            params = [sig, str(self.size_check(length, True)), str(self.int_width), 'ARM_TANH']
+            _params = [sig, str(self.size_check(length, True)), str(self.int_width), 'ARM_TANH']
 
         elif (self.activation == 'sigmoid'):
             self.c_function = 'arm_nn_activations_direct_q7'
-            params = [sig, str(self.size_check(length, True)), str(self.int_width), 'ARM_SIGMOID']
+            _params = [sig, str(self.size_check(length, True)), str(self.int_width), 'ARM_SIGMOID']
 
         else:
             raise Exception('Activation function ('+self.activation+') is not implemented in this library')
 
-        return self.c_function + '(' + ','.join(params) + ');'
+        print(_params)
+        return self.c_function + '(' + ', '.join([str(a) for a in _params]) + ');'
     
     
     
