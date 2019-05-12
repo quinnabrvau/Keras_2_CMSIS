@@ -39,6 +39,7 @@ class layer:
     activation = 'none'
     kern = np.asarray([])
     bias = np.asarray([])
+    inPlace = False
     def __init__(self, config=None, weights=None, prefix=''):
         if config is not None and 'name' in config.keys():
             self.name = prefix+config['name']
@@ -115,7 +116,7 @@ class layer:
             return '{' + ','.join([self._p_array(array[i]) for i in range(array.shape[0])]) + '}'
 
     def _p_to_array(self, name, array):
-        out = 'float32_t ' + self.name + name
+        out = 'const q7_t ' + self.name + name
         for s in array.shape:
             out += '[' + str(s) + ']'
         out += ' = ' + self._p_array(array) + ';'
@@ -157,6 +158,7 @@ class layer:
         return 0
 
 class Input(layer):
+    inPlace = True
     def __init__(self, config=None, weights=None, prefix=''):
         # print(config,weights,prefix)
         layer.__init__(self, config, weights, prefix)
@@ -165,9 +167,10 @@ class Input(layer):
     def p_func_call(self, **args):
         return ''
     
-class Activation(layer):
+class Activation(Input):
     c_function = 'arm_nn_activations_direct_q7'
     int_width = 0; ##TODO: calculate
+    inPlace = True
 
     def __init__(self, config=None, weights=None, prefix='', activation=None):
         layer.__init__(self, config, weights, prefix)
@@ -180,6 +183,16 @@ class Activation(layer):
         if (self.activation == 'relu'):
             c_function = 'arm_relu_q7'
 
+    def size_check(self,length,strOK=False):
+        if strOK and isinstance(length,str):
+            return length
+        else:
+            _length = 1
+            for a in self.input_shape:
+                if a is not None:
+                    _length *= a
+            return _length
+        return length
 
     def p_func_call(self, sig='_needs_source_' , length=-1, **args):
         _params = []
@@ -198,11 +211,11 @@ class Activation(layer):
         else:
             raise Exception('Activation function ('+self.activation+') is not implemented in this library')
 
-        print(_params)
         return self.c_function + '(' + ', '.join([str(a) for a in _params]) + ');'
     
     
-    
+    def get_out_size(self,length=-1):
+        return self.size_check(length)
     
     
     

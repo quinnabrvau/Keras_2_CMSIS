@@ -25,7 +25,7 @@ class Conv1d(layer):
             self.c_function = 'arm_convolve_HWC_q15_basic_1d'
 
     def p_def(self):
-        return '\n\n'.join([self.p_kern(), self.p_bias()])
+        return '\n\n'.join([self.p_kern(), self.p_bias()]) + '\n\n'
         
 
     def p_func_call(self, sig='_needs_source_', dst='_needs_dest_', bufA='_needs_buf_A', bufB='_needs_buf_B', length=-1, **args):
@@ -33,12 +33,12 @@ class Conv1d(layer):
         foo = [sig, self.input_shape[-2], self.input_shape[-1], 
                 self.name+'_KERN', 
                 self.config['filters'], 
-                self.config['filters'], 
-                # self.padding,
-                # self.stride,
+                self.config['kernel_size'], 
+                self.config['padding'],
+                self.config['strides'],
                 self.name+'_BIAS',
-                # self.bias_shift,
-                # self.out_shift,
+                0, # self.bias_shift,
+                0, # self.out_shift,
                 dst, bufA, bufB]
 
         return  self.c_function + '('+', '.join([ str(a) for a in foo])+');\n'
@@ -73,6 +73,8 @@ class Conv1d(layer):
                 out += self.__p_macro('KERN', self.weights[index][k])
         return out
     
+    def get_bufA_size(self):
+        return 2*self.input_shape[-1]*self.input_shape[-1]*self.input_shape[-1]
 
 class Max_pool1d(layer):
     c_function = 'arm_maxpool_q7_HWC_1d'

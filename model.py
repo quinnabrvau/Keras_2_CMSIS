@@ -88,11 +88,12 @@ class model(list):
     
     def p_func_call(self):
         out = ''
-        buffers, buf_size, index = ['buffer1','buffer2'], [0,0], 1
+        buffers, buf_size = ['buffer1','buffer2'], [0,0]
+        index, last_index = 1, 1
         buf = 'signal'
         
         params = ['float32_t *signal', 'float32_t *out_buffer']
-        conv_buf_size = 0
+        bufA, bufB = 0, 0
        
         length = -1
         if not self.fixed:
@@ -100,40 +101,45 @@ class model(list):
         else:
             length = self[0].input_shape[0]
         
-        
-            
         call_code = ''
-
-        # print([lay.name for lay in self])
-        # print(self[0])
-        # print(self[1])        
+   
         for lay in self[1:]:
-            index = 1-index
-            foo = lay.p_func_call(length=length, sig=buf, dst=buffers[index], buf='conv_buf')
-            if isinstance(lay, Conv1d):
-                conv_buf_size = max(conv_buf_size,lay.get_buf_size(length))
+            foo = ''
+            foo = lay.p_func_call(length=length, sig=buf, dst=buffers[index], bufA='bufA', bufB='bufB')
+            bufA = max(bufA, lay.get_bufA_size(length))
+            bufB = max(bufB, lay.get_bufB_size(length))
             out_size = lay.get_out_size(length)
-            # print(lay.name, index,buffers[index],buf_size[index],out_size,max(out_size, buf_size[index]))
             buf_size[index] = max(out_size, buf_size[index])
+            print(index,'->',buf_size[index])
             for line in foo.splitlines():
                 call_code += '\t' + line + '\n'
-            if not isinstance(lay,Input):   
+            last_index = index
+            if not lay.inPlace:
                 buf = buffers[index]
+                index = 1-index
+                
+            
 
-        call_code = call_code.replace(buffers[index],'out_buffer')
-        call_code = call_code.replace(buffers[1-index],'int_buffer')
+        call_code = call_code.replace(buffers[1-last_index],'out_buffer')
+        call_code = call_code.replace(buffers[last_index],'int_buffer')
         if self.fixed:
-            call_code = '\nfloat32_t int_buffer[' + str(buf_size[1-index]) + '];\n' + call_code
+            call_code = '\nq7_t  int_buffer[' + str(buf_size[last_index]) + '];\n' + call_code
+            call_code = '\nq15_t bufferA[' + str(bufA) + '];\n' + call_code
+            call_code = '\nq7_t  bufferB[' + str(bufB) + '];\n' + call_code
         else:
-            params.append('float32_t *int_buffer')
-            params.append('float32_t *conv_buf')
+            params.append('q7_t  *int_buffer')
+            params.append('q15_t *bufferA')
+            params.append('q7_t  *bufferB')
             params.append('uint32_t len')
          
 
-        foo =  "/* buffer sizes\nconv_buffer\tsize\t%d + len\n" % conv_buf_size
-        foo += "%s\tsize\t%d * len\n" % ('out_buffer', buf_size[index])
-        foo += "%s\tsize\t%d * len\n */" % ('int_buffer', buf_size[1-index])
-        self.header['size'] = foo
+            foo =  "/** buffer sizes\n"
+            foo += " * %s\tsize\t%d * len\n" % ('bufferA', bufA)
+            foo += " * %s\tsize\t%d * len\n" % ('bufferB', bufB)
+            foo += " * %s\tsize\t%d * len\n" % ('out_buffer', buf_size[1-last_index])
+            foo += " * %s\tsize\t%d * len\n" % ('int_buffer', buf_size[last_index])
+            foo += " **/"
+            self.header['size'] = foo
 
         if self.static:
             out = 'STATIC_UNLESS_TESTING\n'
